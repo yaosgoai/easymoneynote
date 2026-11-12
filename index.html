@@ -45,8 +45,7 @@
   </div>
 </div>
 <div id="hint" style="display:none;position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:3;background:rgba(51,51,51,.92);color:#fff;font-size:13px;padding:8px 12px;border-radius:10px;max-width:92vw;text-align:center">
-  畫面空白？請先在此瀏覽器<a href="https://accounts.google.com/" target="_blank" rel="noopener" style="color:#f7b03a">登入 Google</a>後
-  <a href="#" onclick="location.reload();return false" style="color:#f7b03a">重新載入</a>
+  載入較慢或畫面空白？<a href="#" onclick="location.reload();return false" style="color:#f7b03a">重新載入</a>
   <a href="#" onclick="this.parentNode.style.display='none';return false" style="color:#ccc;margin-left:6px">✕</a>
 </div>
 <!-- sandbox 刻意不給 allow-top-navigation：Google 在框內偵測不到登入（瀏覽器封鎖第三方 Cookie）時，
@@ -89,6 +88,24 @@
     if (!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(e.origin) &&
         !/^https:\/\/script\.google\.com$/.test(e.origin)) return;
     var d = e.data || {};
+    // 登入 token 存在本頁（github.io 第一方儲存），只回傳給發問的 GAS 頁面
+    if (d.emn === 'token-get') {
+      var t = null;
+      try { t = localStorage.getItem('emn_token') || sessionStorage.getItem('emn_token'); } catch (x) {}
+      try { e.source.postMessage({ emn: 'token', token: t }, e.origin); } catch (x) {}
+      return;
+    }
+    if (d.emn === 'token-set' && typeof d.token === 'string') {
+      try {
+        localStorage.removeItem('emn_token'); sessionStorage.removeItem('emn_token');
+        (d.remember ? localStorage : sessionStorage).setItem('emn_token', d.token);
+      } catch (x) {}
+      return;
+    }
+    if (d.emn === 'token-clear') {
+      try { localStorage.removeItem('emn_token'); sessionStorage.removeItem('emn_token'); } catch (x) {}
+      return;
+    }
     if (d.emn === 'ready') {
       ready = true; clearTimeout(timer);
       splash.classList.add('hide');
