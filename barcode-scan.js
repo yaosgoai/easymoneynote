@@ -71,8 +71,10 @@
   /** 同一內容需讀到幾次才採用（與 BarcodeRules.requiredReads 相同） */
   function requiredReads(format) {
     var f = normFormat(format);
-    if (f === 'code_39' || f === 'code_93' || f === 'codabar') return 4;
-    return ONE_D.indexOf(f) >= 0 ? 3 : 2;
+    // 二維碼有 Reed-Solomon 糾錯，讀到即正確 → 1 次；EAN／UPC／Code 128 有檢查碼 → 2 次；ITF、Code 39 等易部分讀取 → 3 次
+    if (ONE_D.indexOf(f) < 0) return 1;
+    if (f === 'ean_13' || f === 'ean_8' || f === 'upc_a' || f === 'upc_e' || f === 'code_128') return 2;
+    return 3;
   }
 
   /** 投票器（與 ReadVoter 相同）：add(format, text, nowMs?) 達到條件回傳 true */
@@ -398,7 +400,8 @@
               // 內建沒讀到（或沒有內建）：ZXing 讀「穿過十字的水平帶」；有內建時每 2 張畫面才跑一次，避免耗電
               if (hit || !R || (eng.det && tick % 2)) return;
               var sh = Math.min(vw, vh) * 0.12, fr = [0.92, 0.78, 0.64, 0.5], scales = [1, 0.7];
-              for (var k = 0; k < fr.length; k++) {
+              // 每次只試一種水平帶寬度（輪流），避免單張畫面跑 8 次解碼拖慢手機
+              for (var k = (tick >> 1) % fr.length, kk = 0; kk < 1; kk++) {
                 for (var q = 0; q < scales.length; q++) {
                   var sw = vw * fr[k], sc = Math.min(2, Math.max(0.4, 1400 / sw)) * scales[q];
                   var bw = Math.round(sw * sc), bh = Math.max(40, Math.round(sh * sc));
