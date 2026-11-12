@@ -44,10 +44,6 @@
     <a href="#" id="retry" style="background:#888;margin-left:8px">重新載入</a>
   </div>
 </div>
-<div id="hint" style="display:none;position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:3;background:rgba(51,51,51,.92);color:#fff;font-size:13px;padding:8px 12px;border-radius:10px;max-width:92vw;text-align:center">
-  載入較慢或畫面空白？<a href="#" onclick="location.reload();return false" style="color:#f7b03a">重新載入</a>
-  <a href="#" onclick="this.parentNode.style.display='none';return false" style="color:#ccc;margin-left:6px">✕</a>
-</div>
 <!-- sandbox 刻意不給 allow-top-navigation：Google 在框內偵測不到登入（瀏覽器封鎖第三方 Cookie）時，
      會把整個分頁跳到 script.google.com，造成畫面切來切去。不給這個權限就跳不出去。 -->
 <iframe id="app" title="輕鬆記帳" allow="camera; microphone; geolocation; clipboard-write; fullscreen"
@@ -77,7 +73,6 @@
       // 沒收到載入完成訊號：先把遮罩拿掉讓 iframe 直接顯示（多數情況其實已載入），
       // 並在畫面上留一個不擋操作的說明。不會跳轉到 Google Apps Script 網址。
       splash.classList.add('hide');
-      document.getElementById('hint').style.display = 'block';
     }, 10000);
   }
   startTimer();
@@ -109,7 +104,6 @@
     if (d.emn === 'ready') {
       ready = true; clearTimeout(timer);
       splash.classList.add('hide');
-      document.getElementById('hint').style.display = 'none';
     } else if (d.emn === 'view' && (d.view === 'admin' || d.view === 'ledger')) {
       view = d.view === 'admin' ? 'admin' : '';
       history.replaceState(null, '', view ? '?view=admin' : location.pathname);
