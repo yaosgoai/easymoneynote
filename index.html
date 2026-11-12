@@ -38,9 +38,16 @@
   <div class="spin" id="spin"></div>
   <div class="s" id="msg">載入中…</div>
   <div id="fallback">
-    畫面沒有出現？可能是還沒登入 Google，或瀏覽器擋住了嵌入頁面的登入狀態（例如 Safari、無痕視窗）。<br>
-    <a id="direct" href="#" target="_top">直接開啟記帳</a>
+    畫面沒有出現？請先在這個瀏覽器登入你的 Google 帳號，再重新載入。<br>
+    （Safari／無痕視窗若封鎖第三方 Cookie，也可能無法在此顯示）<br>
+    <a href="https://accounts.google.com/" target="_blank" rel="noopener">登入 Google</a>
+    <a href="#" id="retry" style="background:#888;margin-left:8px">重新載入</a>
   </div>
+</div>
+<div id="hint" style="display:none;position:fixed;left:50%;bottom:76px;transform:translateX(-50%);z-index:3;background:rgba(51,51,51,.92);color:#fff;font-size:13px;padding:8px 12px;border-radius:10px;max-width:92vw;text-align:center">
+  畫面空白？請先在此瀏覽器<a href="https://accounts.google.com/" target="_blank" rel="noopener" style="color:#f7b03a">登入 Google</a>後
+  <a href="#" onclick="location.reload();return false" style="color:#f7b03a">重新載入</a>
+  <a href="#" onclick="this.parentNode.style.display='none';return false" style="color:#ccc;margin-left:6px">✕</a>
 </div>
 <iframe id="app" title="輕鬆記帳" allow="camera; microphone; geolocation; clipboard-write; fullscreen"></iframe>
 <script>
@@ -57,7 +64,7 @@
   }
   var frame = document.getElementById('app');
   var splash = document.getElementById('splash');
-  document.getElementById('direct').href = WEB_URL + (view === 'admin' ? '?view=admin' : '');
+  document.getElementById('retry').onclick = function (e) { e.preventDefault(); location.reload(); };
   frame.src = src(view);
 
   var ready = false, timer = null;
@@ -65,25 +72,27 @@
     clearTimeout(timer);
     timer = setTimeout(function () {
       if (ready) return;
-      document.getElementById('spin').style.display = 'none';
-      document.getElementById('msg').style.display = 'none';
-      document.getElementById('fallback').style.display = 'block';
-    }, 15000);
+      // 沒收到載入完成訊號：先把遮罩拿掉讓 iframe 直接顯示（多數情況其實已載入），
+      // 並在畫面上留一個不擋操作的說明。不會跳轉到 Google Apps Script 網址。
+      splash.classList.add('hide');
+      document.getElementById('hint').style.display = 'block';
+    }, 10000);
   }
   startTimer();
 
   // 只接受 GAS 頁面（script.googleusercontent.com）送來的訊息；內容只有畫面切換指令，沒有資料
   window.addEventListener('message', function (e) {
-    if (!/^https:\/\/[a-z0-9-]+\.script\.googleusercontent\.com$/.test(e.origin) &&
-        !/^https:\/\/script\.google(usercontent)?\.com$/.test(e.origin)) return;
+    // GAS 沙箱網域形如 https://n-xxxx-0lu-script.googleusercontent.com
+    if (!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(e.origin) &&
+        !/^https:\/\/script\.google\.com$/.test(e.origin)) return;
     var d = e.data || {};
     if (d.emn === 'ready') {
       ready = true; clearTimeout(timer);
       splash.classList.add('hide');
+      document.getElementById('hint').style.display = 'none';
     } else if (d.emn === 'view' && (d.view === 'admin' || d.view === 'ledger')) {
       view = d.view === 'admin' ? 'admin' : '';
       history.replaceState(null, '', view ? '?view=admin' : location.pathname);
-      document.getElementById('direct').href = WEB_URL + (view ? '?view=admin' : '');
       splash.classList.remove('hide'); ready = false; startTimer();
       frame.src = src(view);
     }
