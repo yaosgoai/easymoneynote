@@ -49,7 +49,10 @@
   <a href="#" onclick="location.reload();return false" style="color:#f7b03a">重新載入</a>
   <a href="#" onclick="this.parentNode.style.display='none';return false" style="color:#ccc;margin-left:6px">✕</a>
 </div>
-<iframe id="app" title="輕鬆記帳" allow="camera; microphone; geolocation; clipboard-write; fullscreen"></iframe>
+<!-- sandbox 刻意不給 allow-top-navigation：Google 在框內偵測不到登入（瀏覽器封鎖第三方 Cookie）時，
+     會把整個分頁跳到 script.google.com，造成畫面切來切去。不給這個權限就跳不出去。 -->
+<iframe id="app" title="輕鬆記帳" allow="camera; microphone; geolocation; clipboard-write; fullscreen"
+  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads allow-storage-access-by-user-activation"></iframe>
 <script>
 (function () {
   'use strict';
