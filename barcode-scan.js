@@ -151,11 +151,32 @@
     for (var i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
     return g;
   }
+  /** 十字點 (x,y) 是否落在條碼內：有角點用角點多邊形，否則用外框（皆不放寬） */
+  function inCode(b, x, y) {
+    var c = b.cornerPoints;
+    if (c && c.length >= 3) {
+      var pos = false, neg = false;
+      for (var i = 0; i < c.length; i++) {
+        var a = c[i], d = c[(i + 1) % c.length], cr = (d.x - a.x) * (y - a.y) - (d.y - a.y) * (x - a.x);
+        if (cr > 0) pos = true; else if (cr < 0) neg = true;
+        if (pos && neg) return false;
+      }
+      return true;
+    }
+    var bb = b.boundingBox;
+    return !!bb && x >= bb.x && x <= bb.x + bb.width && y >= bb.y && y <= bb.y + bb.height;
+  }
+
   function zxTry(Z, reader, g, w, h) {
     try {
       var r = reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.RGBLuminanceSource(g, w, h))));
       if (!r || !r.getText()) return null;
-      return { format: normFormat(Z.BarcodeFormat[r.getBarcodeFormat()]), text: r.getText() };
+      var pts = (r.getResultPoints && r.getResultPoints()) || [], xs = [], ys = [];
+      pts.forEach(function (p) { if (p) { xs.push(p.getX()); ys.push(p.getY()); } });
+      var mnx = Math.min.apply(null, xs), mxx = Math.max.apply(null, xs), mny = Math.min.apply(null, ys), mxy = Math.max.apply(null, ys);
+      return { format: normFormat(Z.BarcodeFormat[r.getBarcodeFormat()]), text: r.getText(),
+        spans: xs.length < 2 || (mnx <= w / 2 && w / 2 <= mxx),                                   // 一維：橫跨十字
+        hits: xs.length < 3 || (mnx <= w / 2 && w / 2 <= mxx && mny <= h / 2 && h / 2 <= mxy) };  // 二維：十字在定位點範圍內
     } catch (e) { return null; } finally { try { reader.reset(); } catch (e) {} }
   }
 
@@ -358,16 +379,17 @@
             if (busy || done || v.readyState < 2) return;
             busy = true; tick++;
             var vw = v.videoWidth, vh = v.videoHeight, cx = vw / 2, cy = vh / 2;
-            var p = Promise.resolve(false);
+            var p = Promise.resolve(false), others = [];
             if (eng.det) {
               p = eng.det.detect(v).then(function (list) {
-                var best = null, bd = Infinity, tol = Math.min(vw, vh) * 0.03;   // 只取外框包含十字者，取最接近十字
+                // 只取「十字點落在條碼角點範圍內」者（不放寬）；相鄰條碼貼很近也不會誤讀；同時落在兩個內＝不明確，略過
+                var best = null, n = 0;
                 (list || []).forEach(function (b) {
-                  var bb = b.boundingBox; if (!b.rawValue || !bb) return;
-                  if (cx < bb.x - tol || cx > bb.x + bb.width + tol || cy < bb.y - tol || cy > bb.y + bb.height + tol) return;
-                  var dx = bb.x + bb.width / 2 - cx, dy = bb.y + bb.height / 2 - cy, dist = dx * dx + dy * dy;
-                  if (dist < bd) { bd = dist; best = b; }
+                  if (!b.rawValue || !inCode(b, cx, cy)) return;
+                  best = b; n++;
                 });
+                if (n !== 1) best = null;
+                others = (list || []).filter(function (b) { return b !== best; }).map(function (b) { return b.rawValue; });
                 if (best && validate(normFormat(best.format), best.rawValue)) { candidate(best.format, best.rawValue, 'native'); return true; }
                 return false;
               }).catch(function () { return false; });
@@ -384,7 +406,7 @@
                   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
                   ctx.drawImage(v, (vw - sw) / 2, cy - sh / 2, sw, sh, 0, 0, bw, bh);
                   var t = zxTry(eng.Z, R.oneD, grayOf(ctx, bw, bh), bw, bh);
-                  if (t) { candidate(t.format, t.text, 'zxing'); return; }
+                  if (t && others.indexOf(t.text) < 0 && t.spans) { candidate(t.format, t.text, 'zxing'); return; }
                 }
               }
               if (!eng.det) {   // 沒有內建辨識：二維碼也用 ZXing 讀取景框正方形
@@ -392,7 +414,7 @@
                 c.width = out; c.height = out;
                 ctx.drawImage(v, cx - s / 2, cy - s / 2, s, s, 0, 0, out, out);
                 var t2 = zxTry(eng.Z, R.twoD, grayOf(ctx, out, out), out, out);
-                if (t2) candidate(t2.format, t2.text, 'zxing');
+                if (t2 && t2.hits) candidate(t2.format, t2.text, 'zxing');
               }
             }).then(function () { busy = false; }, function () { busy = false; });
           }, 150);
